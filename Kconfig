@@ -43,8 +43,8 @@ config TEST_EXHAUSTIVE
     default n
     help
       Enumerate every operand pair and all enabled signedness combinations.
-      Warn before testing when the total exceeds 2^20 cases.
-      Report progress every 2^18 completed result checks.
+      Warn before testing when the total exceeds 2^24 cases.
+      Report progress every 2^20 completed result checks.
       This replaces the normal directed/random calculation tests.
 
 config TEST_SIGNED

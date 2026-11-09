@@ -23,7 +23,7 @@ using U128 = unsigned __int128;
 constexpr unsigned width = OPERAND_WIDTH;
 constexpr bool testSigned = TEST_SIGNED;
 constexpr bool testExhaustive = TEST_EXHAUSTIVE;
-constexpr unsigned progressInterval = 1U << 18;
+constexpr unsigned progressInterval = 1U << 20;
 static_assert(width >= 1 && width <= 64);
 constexpr uint64_t operandMask = std::numeric_limits<uint64_t>::max() >> (64 - width);
 constexpr U128 resultMask = ~U128{0} >> (128 - 2 * width);
@@ -55,9 +55,9 @@ std::string exhaustiveTotal() {
 void announceExhaustive() {
     const auto total = exhaustiveTotal();
     std::cout << "Exhaustive cases=" << total << std::endl;
-    if (2 * width + (testSigned ? 2 : 0) > 20)
+    if (2 * width + (testSigned ? 2 : 0) > 24)
         std::cerr << "WARNING: exhaustive test has " << total
-                  << " cases (> 2^20); this may take a long time." << std::endl;
+                  << " cases (> 2^24); this may take a long time." << std::endl;
 }
 
 struct Request {
