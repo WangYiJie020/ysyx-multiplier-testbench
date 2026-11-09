@@ -144,12 +144,22 @@ class Testbench {
     unsigned exhaustiveBatch = 0;
     std::string exhaustiveCompleted = "0";
 
+    void printExhaustiveProgress(bool complete = false) const {
+        const auto total = exhaustiveTotal();
+        const long double percent = std::stold(exhaustiveCompleted) / std::stold(total) * 100;
+        std::ostringstream formatted;
+        formatted << std::fixed << std::setprecision(2) << percent;
+        std::cout << '\r' << "Exhaustive progress: " << exhaustiveCompleted
+                  << "/" << total << " (" << formatted.str() << "%)";
+        if (complete) std::cout << '\n';
+        std::cout << std::flush;
+    }
+
     void checkedExhaustive() {
         if (exhaustiveActive && ++exhaustiveBatch == progressInterval) {
             addDecimal(exhaustiveCompleted, exhaustiveBatch);
             exhaustiveBatch = 0;
-            std::cout << "Exhaustive progress: " << exhaustiveCompleted
-                      << "/" << exhaustiveTotal() << std::endl;
+            printExhaustiveProgress();
         }
     }
 
@@ -198,6 +208,7 @@ public:
     }
 
     [[noreturn]] void fail(const std::string& message) const {
+        if (exhaustiveActive) std::cout << '\n' << std::flush;
         throw std::runtime_error("cycle " + std::to_string(cycles) + ": " + message);
     }
 
@@ -286,6 +297,7 @@ public:
 
     void runExhaustive(std::mt19937_64& rng) {
         exhaustiveActive = true;
+        printExhaustiveProgress();
         const unsigned signModes = testSigned ? 4 : 1;
         for (unsigned mode = 0; mode < signModes; ++mode) {
             // Sentinel comparisons avoid shifting by 64 or overflowing loop bounds.
@@ -305,8 +317,7 @@ public:
         drain();
         exhaustiveActive = false;
         addDecimal(exhaustiveCompleted, exhaustiveBatch);
-        std::cout << "Exhaustive complete: " << exhaustiveCompleted
-                  << "/" << exhaustiveTotal() << std::endl;
+        printExhaustiveProgress(true);
     }
 
     void resetDuringTraffic(const Request& request) {

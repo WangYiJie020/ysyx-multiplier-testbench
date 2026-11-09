@@ -39,7 +39,7 @@ config LATENCY
     default 3
 menu "Test coverage"
 config TEST_EXHAUSTIVE
-    bool "强制开启全量测试"
+    bool "Force exhaustive testing"
     default n
     help
       Enumerate every operand pair and all enabled signedness combinations.
