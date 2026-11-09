@@ -1,0 +1,54 @@
+mainmenu "YSYX Multiplier Testbench"
+choice
+    prompt "Student language"
+    default IMPL_CHISEL
+config IMPL_CHISEL
+    bool "Chisel"
+config IMPL_VERILOG
+    bool "Verilog via Chisel BlackBox"
+endchoice
+choice
+    prompt "Learning stage"
+    default STAGE_COMB
+config STAGE_COMB
+    bool "1. Combinational unsigned"
+config STAGE_MULTI
+    bool "2. Fixed multicycle unsigned FSM"
+config STAGE_PIPE
+    bool "3. Fixed latency unsigned pipeline"
+config STAGE_HANDSHAKE
+    bool "4. Unsigned with handshake"
+config STAGE_SIGNED
+    bool "5. Full interface with signed operands"
+endchoice
+config STAGE
+    int
+    default 1 if STAGE_COMB
+    default 2 if STAGE_MULTI
+    default 3 if STAGE_PIPE
+    default 4 if STAGE_HANDSHAKE
+    default 5 if STAGE_SIGNED
+config WIDTH
+    int "Operand width"
+    range 1 64
+    default 8
+config LATENCY
+    int "Student native latency (cycles)"
+    depends on STAGE_MULTI || STAGE_PIPE
+    range 1 64
+    default 3
+menu "Test coverage"
+config TEST_EXHAUSTIVE
+    bool "强制开启全量测试"
+    default n
+    help
+      Enumerate every operand pair and all enabled signedness combinations.
+      Warn before testing when the total exceeds 2^20 cases.
+      Report progress every 2^18 completed result checks.
+      This replaces the normal directed/random calculation tests.
+
+config TEST_SIGNED
+    bool "Test signed and mixed-sign multiplication"
+    depends on STAGE_SIGNED
+    default n
+endmenu

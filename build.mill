@@ -1,0 +1,12 @@
+package build
+
+import mill.*, scalalib.*
+
+object multiplier extends ScalaModule {
+  def scalaVersion = "2.13.18"
+  def chiselVersion = "7.4.0"
+  def mvnDeps = Seq(mvn"org.chipsalliance::chisel:${chiselVersion}")
+  def scalacPluginMvnDeps = Seq(mvn"org.chipsalliance:::chisel-plugin:${chiselVersion}")
+  def scalacOptions = Seq("-deprecation", "-feature", "-unchecked", "-Xfatal-warnings")
+  def mainClass = Some("multiplier.Elaborate")
+}

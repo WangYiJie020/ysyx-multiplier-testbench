@@ -1,0 +1,15 @@
+/out/
+/build/
+/tools/kconfig/
+/tools/.kconfig-source.*/
+/include/config/
+/include/generated/
+/.config*
+/.venv/
+.bsp/
+.metals/
+.idea/
+*.vcd
+__pycache__/
+/compile_commands.json
+*.fst
