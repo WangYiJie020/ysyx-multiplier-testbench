@@ -39,8 +39,8 @@ make distclean               # 额外清理 Mill out 与当前配置
 | 1 组合逻辑 | a, b, product | 无 | 无 | 无 | `CombMultiplier.v` |
 | 2 固定多周期 FSM | a, b, product | 有 | 无 | 无 | `MulticycleMultiplier.v` |
 | 3 固定延迟流水线 | a, b, product | 有 | 无 | 无 | `PipelineMultiplier.v` |
-| 4 引入握手 | a, b, product | 有 | in_valid/in_ready/out_valid/out_ready | 无 | `HandshakeMultiplier.v` |
-| 5 支持符号 | a, b, product | 有 | 完整握手 | a_signed/b_signed | `SignedMultiplier.v` |
+| 4 引入握手 | a, b, product | 有 | 有 | 无 | `HandshakeMultiplier.v` |
+| 5 支持符号 | a, b, product | 有 | 有 | a_signed/b_signed | `SignedMultiplier.v` |
 
 
 `a/b` 为 WIDTH 位，`product` 为 2×WIDTH 位完整乘积。
@@ -53,15 +53,15 @@ Verilog 模块都有 WIDTH 参数；阶段 2/3 另有 LATENCY 参数。
 
 下面是各个阶段的说明。
 
-### 没有握手的阶段
+## 没有握手的阶段
 
-## 阶段 1 是真正的组合模块，端口没有时钟、复位、有效位或符号开关。
+### 阶段 1 是真正的组合模块，端口没有时钟、复位、有效位或符号开关。
 
 对应讲义的
 - 基于ROM的乘法器
 - 纯组合逻辑
 
-## 阶段 2 的 LATENCY=L（使用 `make menuconfig` 配置） 是学员状态机的固定计算周期数（不是额外添加的流水级）。
+### 阶段 2 的 LATENCY=L（使用 `make menuconfig` 配置） 是学员状态机的固定计算周期数（不是额外添加的流水级）。
 我们假设学员的模块在复位后第 1、L+1、2L+1……个上升沿采样输入，在第 L、2L、3L……个上升沿之后输出对应结果。
 例如 L=3 时，第 1 拍取数，第 3 拍后结果可用，第 4 拍取下一组。
 
@@ -73,7 +73,7 @@ Verilog 模块都有 WIDTH 参数；阶段 2/3 另有 LATENCY 参数。
 - 优化的状态机
 - 移位加乘法器
 
-## 阶段 3 流水化，每拍均采样操作数，经过 L 个上升沿后对应结果可用，允许每拍一组输入。
+### 阶段 3 流水化，每拍均采样操作数，经过 L 个上升沿后对应结果可用，允许每拍一组输入。
 例如 L=1 时，采样该输入的上升沿之后即可看到结果。
 框架独立跟踪有效请求并预留结果缓冲空间，测试侧背压不会导致流水中的有效结果丢失。
 
@@ -82,7 +82,7 @@ Verilog 模块都有 WIDTH 参数；阶段 2/3 另有 LATENCY 参数。
 
 LATENCY 仅在阶段 2/3 可配置（1–64），必须与学员实现相符。
 
-### 有握手的阶段
+## 有握手的阶段
 
 阶段 4/5 仅在 `valid && ready` 的上升沿传输；背压时保持有效位和数据。
 结果须按请求顺序返回，可自行选择固定/可变延迟和并发度；复位取消在途请求。
