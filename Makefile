@@ -35,7 +35,14 @@ BUILD_DIR := $(CURDIR)/build/$(IMPL)-stage$(STAGE)-w$(WIDTH)-l$(LATENCY)-s$(SIGN
 RTL := $(BUILD_DIR)/rtl/Multiplier.sv
 SIM := $(BUILD_DIR)/sim
 SCALA_SOURCES := $(wildcard multiplier/src/multiplier/*.scala)
-VERILOG_SOURCES := $(wildcard student/rtl/*.v)
+STUDENT_MODULES := CombMultiplier MulticycleMultiplier PipelineMultiplier HandshakeMultiplier SignedMultiplier
+STUDENT_ENTRIES := $(addprefix $(CURDIR)/student/rtl/,$(addsuffix .v,$(STUDENT_MODULES)))
+ifeq ($(IMPL),verilog)
+VERILOG_ENTRY := $(word $(or $(STAGE),1),$(STUDENT_ENTRIES))
+# Compile the selected stage plus any additional student helper modules.
+VERILOG_SOURCES := $(VERILOG_ENTRY) $(filter-out $(STUDENT_ENTRIES),$(wildcard $(CURDIR)/student/rtl/*.v $(CURDIR)/student/rtl/*.sv))
+VERILOG_DEPS := $(VERILOG_SOURCES) $(wildcard student/rtl/*.vh student/rtl/*.svh) student/rtl
+endif
 
 .PHONY: init all menuconfig defconfig olddefconfig savedefconfig compile rtl sim test wave regression help clean distclean
 init: tools/kconfig/parser.y
@@ -72,18 +79,18 @@ all: test
 compile:
 	$(MILL) $(MILL_FLAGS) multiplier.compile
 
-$(RTL): $(SCALA_SOURCES) multiplier/src/multiplier $(VERILOG_SOURCES) student/rtl include/config/auto.conf build.mill .mill-version .mill-jvm-version
+$(RTL): $(SCALA_SOURCES) multiplier/src/multiplier include/config/auto.conf build.mill .mill-version .mill-jvm-version
 	rm -rf -- '$(dir $(RTL))'
 	@mkdir -p '$(dir $(RTL))'
 	$(MILL) $(MILL_FLAGS) multiplier.run '$(WIDTH)' '$(STAGE)' '$(LATENCY)' '$(IMPL)' '$(dir $(RTL))'
 
 rtl: $(RTL)
-$(SIM): $(RTL) sim/main.cpp Makefile
+$(SIM): $(RTL) $(VERILOG_DEPS) sim/main.cpp Makefile
 	$(VERILATOR) --cc --exe --build --trace-fst --assert $(VERILATOR_FLAGS) \
 		--top-module Multiplier --prefix VMultiplier \
 		-I'$(dir $(RTL))' -I'$(CURDIR)/student/rtl' --Mdir '$(BUILD_DIR)/obj_dir' -o '$(SIM)' -j $(JOBS) \
 		-CFLAGS '-std=c++17 -O2 -Wall -Wextra -DOPERAND_WIDTH=$(WIDTH) -DTEST_SIGNED=$(SIGNED) -DTEST_EXHAUSTIVE=$(EXHAUSTIVE)' \
-		-MAKEFLAGS 'CXX=$(CXX)' $(wildcard $(dir $(RTL))*.sv) $(wildcard $(dir $(RTL))*.v) '$(CURDIR)/sim/main.cpp'
+		-MAKEFLAGS 'CXX=$(CXX)' $(wildcard $(dir $(RTL))*.sv) $(VERILOG_SOURCES) '$(CURDIR)/sim/main.cpp'
 
 sim: $(SIM)
 test: $(SIM)

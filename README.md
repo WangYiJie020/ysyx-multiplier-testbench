@@ -48,7 +48,11 @@ make distclean               # 额外清理 Mill out 与当前配置
 
 使用 Chisel 的学员实现应修改 `multiplier/src/multiplier/Students.scala` 中对应类；
 使用 Verilog 学员应修改 `student/rtl/` 中对应文件，保留模块名和端口。
-每个阶段使用独立的 Verilog 文件，Chisel BlackBox **只加载所选阶段文件**。
+每个阶段使用独立的 Verilog 文件，Chisel BlackBox 仅声明所选阶段的模块接口。
+Verilator 直接读取 `student/rtl/` 中所选阶段的 `.v`，以及额外的 `.v/.sv` 辅助模块。
+其他阶段的范例文件不参与当前仿真。只修改 Verilog 源码或 `.vh/.svh` 头文件时，
+仅重新构建 Verilator 仿真器并测试，**无需重新运行 Mill/Chisel**。
+修改 Chisel 源码或切换构建配置时，才重新生成包装器 RTL。
 Verilog 模块都有 WIDTH 参数；阶段 2/3 另有 LATENCY 参数。
 
 下面是各个阶段的说明。

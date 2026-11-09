@@ -1,14 +1,12 @@
 package multiplier
 
 import chisel3._
-import chisel3.util.HasBlackBoxPath
-import java.nio.file.Paths
 
+// Declare only the external interface here. Verilator reads student sources directly.
 abstract class StudentBlackBox(p: MulParams, name: String, timed: Boolean)
     extends BlackBox(if (timed) Map("WIDTH" -> p.width, "LATENCY" -> p.latency)
-                    else Map("WIDTH" -> p.width)) with HasBlackBoxPath {
+                    else Map("WIDTH" -> p.width)) {
   override def desiredName: String = name
-  addPath(Paths.get("student/rtl", name + ".v").toAbsolutePath.toString)
 }
 // Explicit clocks belong to the Verilog boundary; student Chisel Modules use
 // their ordinary implicit clock/reset ports.
