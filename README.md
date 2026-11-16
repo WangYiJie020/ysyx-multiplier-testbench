@@ -61,6 +61,22 @@ make -f scripts/tracer.mk .clean_index  # 仅在提交异常中断、残留 .git
 * **溢出处理**：以输出的 `2×WIDTH` 位完整乘积为准，测试始终覆盖输入范围，无溢出过滤。
 * **全量测试**：在 `menuconfig` 中启用 `TEST_EXHAUSTIVE` 后，将遍历所有输入组合，适合位宽较小的穷举验证。
 
+## 自定义测试（学生接口）
+默认的 `builtin` 测试之外，可以在 `student/tests/custom_tests.cpp` 中实现 `customTests()`，用自己构造的数据或方法驱动设计；所有经 `tb` 发出的请求都会自动与参考模型比对。
+
+```bash
+make test SUITE=custom                                   # 只跑自定义测试
+make test SUITE=all                                      # 内置 + 自定义
+make test SUITE=custom VECTORS=student/tests/vectors.txt # 从文件加载测试向量
+```
+
+可用接口（均在 `namespace sim`，头文件 `sim/student.h`）：
+* **数据**：`Request{a, b, aSigned = 0, bSigned = 0}`（构造时自动用 `operandMask` 截断到位宽）、`directedRequests()`、`randomRequests(n, rng)`、`loadRequests(file)`（每行 `a b [aSigned bSigned]`，支持 `#` 注释）、`filterEnabled(requests)`。
+* **驱动**：`tb.run(requests, Pacing)` 按自定义的发送/接收停顿模式发送（`Pacing::always()`、`Pacing::random(rng)`，或自行设置 `offer` / `ready` 回调）；`tb.step(request, ready)` 逐周期控制；`tb.reset()`、`tb.drain()`、`tb.resetDuringTraffic(r)`。
+* **常量**：`width`、`testSigned`、`operandMask`。
+
+`sim/` 目录结构：`main.cpp` / `main.h`（入口与命令行选项）、`model.*`（请求与参考模型）、`testbench.*`（驱动与记分板）、`testgen.*`（数据生成/加载）、`builtin_tests.*`（内置测试）、`progress.*`（穷举进度）、`config.h`（编译期参数）。
+
 ---
 
 ## 附录：时序与接口约定

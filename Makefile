@@ -11,6 +11,8 @@ JOBS ?= 2
 TESTS ?= 10000
 SEED ?= 1
 TIMEOUT ?= 10000
+SUITE ?= builtin
+VECTORS ?=
 SIM_ARGS ?=
 DEFCONFIG ?= configs/default_defconfig
 
@@ -47,7 +49,10 @@ VERILOG_ENTRY := $(word $(or $(STAGE),1),$(STUDENT_ENTRIES))
 VERILOG_SOURCES := $(VERILOG_ENTRY) $(filter-out $(STUDENT_ENTRIES),$(wildcard $(CURDIR)/student/rtl/*.v $(CURDIR)/student/rtl/*.sv))
 VERILOG_DEPS := $(VERILOG_SOURCES) $(wildcard student/rtl/*.vh student/rtl/*.svh) student/rtl
 endif
-RUN_INFO := impl=$(IMPL) stage=$(STAGE) width=$(WIDTH) latency=$(LATENCY) signed=$(SIGNED) exhaustive=$(EXHAUSTIVE) tests=$(TESTS) seed=$(SEED) timeout=$(TIMEOUT)$(if $(SIM_ARGS), sim_args=$(SIM_ARGS))
+SIM_SOURCES := $(wildcard sim/*.cpp student/tests/*.cpp)
+SIM_DEPS := $(SIM_SOURCES) $(wildcard sim/*.h student/tests/*.h)
+RUN_ARGS := --tests '$(TESTS)' --seed '$(SEED)' --timeout '$(TIMEOUT)' --suite '$(SUITE)'$(if $(VECTORS), --vectors '$(VECTORS)') $(SIM_ARGS)
+RUN_INFO := impl=$(IMPL) stage=$(STAGE) width=$(WIDTH) latency=$(LATENCY) signed=$(SIGNED) exhaustive=$(EXHAUSTIVE) tests=$(TESTS) seed=$(SEED) timeout=$(TIMEOUT) suite=$(SUITE)$(if $(VECTORS), vectors=$(VECTORS))$(if $(SIM_ARGS), sim_args=$(SIM_ARGS))
 
 # Run a simulator command, log its output and record the result as a tracer commit.
 # prototype: traced_run(label, command)
@@ -101,21 +106,21 @@ $(RTL): $(SCALA_SOURCES) multiplier/src/multiplier include/config/auto.conf buil
 	$(MILL) $(MILL_FLAGS) multiplier.run '$(WIDTH)' '$(STAGE)' '$(LATENCY)' '$(IMPL)' '$(dir $(RTL))'
 
 rtl: $(RTL)
-$(SIM): $(RTL) $(VERILOG_DEPS) sim/main.cpp Makefile
+$(SIM): $(RTL) $(VERILOG_DEPS) $(SIM_DEPS) Makefile
 	$(call git_commit,compile sim)
 	$(VERILATOR) --cc --exe --build --trace-fst --assert $(VERILATOR_FLAGS) \
 		--top-module Multiplier --prefix VMultiplier \
 		-I'$(dir $(RTL))' -I'$(CURDIR)/student/rtl' --Mdir '$(BUILD_DIR)/obj_dir' -o '$(SIM)' -j $(JOBS) \
-		-CFLAGS '-std=c++17 -O2 -Wall -Wextra -DOPERAND_WIDTH=$(WIDTH) -DTEST_SIGNED=$(SIGNED) -DTEST_EXHAUSTIVE=$(EXHAUSTIVE)' \
-		-MAKEFLAGS 'CXX=$(CXX)' $(wildcard $(dir $(RTL))*.sv) $(VERILOG_SOURCES) '$(CURDIR)/sim/main.cpp'
+		-CFLAGS '-std=c++17 -O2 -I$(CURDIR)/sim -Wall -Wextra -DOPERAND_WIDTH=$(WIDTH) -DTEST_SIGNED=$(SIGNED) -DTEST_EXHAUSTIVE=$(EXHAUSTIVE)' \
+		-MAKEFLAGS 'CXX=$(CXX)' $(wildcard $(dir $(RTL))*.sv) $(VERILOG_SOURCES) $(addprefix $(CURDIR)/,$(SIM_SOURCES))
 
 sim: $(SIM)
 test: $(SIM)
 	$(call git_commit,run test)
-	$(call traced_run,test,'$(SIM)' --tests '$(TESTS)' --seed '$(SEED)' --timeout '$(TIMEOUT)' $(SIM_ARGS))
+	$(call traced_run,test,'$(SIM)' $(RUN_ARGS))
 wave: $(SIM)
 	$(call git_commit,run wave)
-	$(call traced_run,wave,'$(SIM)' --tests '$(TESTS)' --seed '$(SEED)' --timeout '$(TIMEOUT)' --trace '$(BUILD_DIR)/wave.fst' $(SIM_ARGS))
+	$(call traced_run,wave,'$(SIM)' $(RUN_ARGS) --trace '$(BUILD_DIR)/wave.fst')
 
 regression: .config $(CONF)
 	bash scripts/regression.sh
@@ -125,6 +130,7 @@ help:
 	@echo 'make test | wave | regression | rtl | sim | compile | clean | distclean'
 	@echo 'Hardware settings: .config (default: width 8, combinational Chisel)'
 	@echo 'Runtime settings: TESTS=10000 SEED=1 TIMEOUT=10000 JOBS=2'
+	@echo 'Custom tests: SUITE=builtin|custom|all VECTORS=file (student/tests/custom_tests.cpp)'
 
 clean:
 	rm -rf build
