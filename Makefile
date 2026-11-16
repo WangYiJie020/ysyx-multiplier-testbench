@@ -14,6 +14,10 @@ TIMEOUT ?= 10000
 SIM_ARGS ?=
 DEFCONFIG ?= configs/default_defconfig
 
+# Git tracer: snapshots of the working tree (and test results) on the tracer-ysyx branch.
+# Set STUID/STUNAME in scripts/tracer.mk.
+include scripts/tracer.mk
+
 ifdef CONFIG
 $(error Use the project .config and make menuconfig; CONFIG= is not supported)
 endif
@@ -43,6 +47,17 @@ VERILOG_ENTRY := $(word $(or $(STAGE),1),$(STUDENT_ENTRIES))
 VERILOG_SOURCES := $(VERILOG_ENTRY) $(filter-out $(STUDENT_ENTRIES),$(wildcard $(CURDIR)/student/rtl/*.v $(CURDIR)/student/rtl/*.sv))
 VERILOG_DEPS := $(VERILOG_SOURCES) $(wildcard student/rtl/*.vh student/rtl/*.svh) student/rtl
 endif
+RUN_INFO := impl=$(IMPL) stage=$(STAGE) width=$(WIDTH) latency=$(LATENCY) signed=$(SIGNED) exhaustive=$(EXHAUSTIVE) tests=$(TESTS) seed=$(SEED) timeout=$(TIMEOUT)$(if $(SIM_ARGS), sim_args=$(SIM_ARGS))
+
+# Run a simulator command, log its output and record the result as a tracer commit.
+# prototype: traced_run(label, command)
+define traced_run
+	@+mkdir -p '$(BUILD_DIR)'; start=$$SECONDS; \
+	$(2) 2>&1 | tee '$(BUILD_DIR)/$(1).log'; status=$${PIPESTATUS[0]}; \
+	bash scripts/tracer-result.sh '$(1)' $$status $$((SECONDS - start)) '$(BUILD_DIR)/$(1).log' '$(RUN_INFO)' > '$(BUILD_DIR)/$(1).result'; \
+	$(call git_commit_file_cmd,'$(BUILD_DIR)/$(1).result'); \
+	exit $$status
+endef
 
 .PHONY: init all menuconfig defconfig olddefconfig savedefconfig compile rtl sim test wave regression help clean distclean
 init: tools/kconfig/parser.y
@@ -80,12 +95,14 @@ compile:
 	$(MILL) $(MILL_FLAGS) multiplier.compile
 
 $(RTL): $(SCALA_SOURCES) multiplier/src/multiplier include/config/auto.conf build.mill .mill-version .mill-jvm-version
+	$(call git_commit,generate rtl)
 	rm -rf -- '$(dir $(RTL))'
 	@mkdir -p '$(dir $(RTL))'
 	$(MILL) $(MILL_FLAGS) multiplier.run '$(WIDTH)' '$(STAGE)' '$(LATENCY)' '$(IMPL)' '$(dir $(RTL))'
 
 rtl: $(RTL)
 $(SIM): $(RTL) $(VERILOG_DEPS) sim/main.cpp Makefile
+	$(call git_commit,compile sim)
 	$(VERILATOR) --cc --exe --build --trace-fst --assert $(VERILATOR_FLAGS) \
 		--top-module Multiplier --prefix VMultiplier \
 		-I'$(dir $(RTL))' -I'$(CURDIR)/student/rtl' --Mdir '$(BUILD_DIR)/obj_dir' -o '$(SIM)' -j $(JOBS) \
@@ -94,9 +111,11 @@ $(SIM): $(RTL) $(VERILOG_DEPS) sim/main.cpp Makefile
 
 sim: $(SIM)
 test: $(SIM)
-	'$(SIM)' --tests '$(TESTS)' --seed '$(SEED)' --timeout '$(TIMEOUT)' $(SIM_ARGS)
+	$(call git_commit,run test)
+	$(call traced_run,test,'$(SIM)' --tests '$(TESTS)' --seed '$(SEED)' --timeout '$(TIMEOUT)' $(SIM_ARGS))
 wave: $(SIM)
-	'$(SIM)' --tests '$(TESTS)' --seed '$(SEED)' --timeout '$(TIMEOUT)' --trace '$(BUILD_DIR)/wave.fst' $(SIM_ARGS)
+	$(call git_commit,run wave)
+	$(call traced_run,wave,'$(SIM)' --tests '$(TESTS)' --seed '$(SEED)' --timeout '$(TIMEOUT)' --trace '$(BUILD_DIR)/wave.fst' $(SIM_ARGS))
 
 regression: .config $(CONF)
 	bash scripts/regression.sh

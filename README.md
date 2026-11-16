@@ -22,6 +22,16 @@ make
 make test TESTS=100000 [SEED=42]
 ```
 
+### Git Tracer
+参考 ysyx 工作区的 tracer：`make rtl`、`make sim`、`make test`、`make wave` 会把当前工作区快照自动提交到 `tracer-ysyx` 分支（不影响当前分支、工作区与暂存区；遵守 `.gitignore`）。`test` / `wave` 运行结束后还会追加一次提交，在提交信息中记录 `PASS/FAIL`、退出码、耗时、配置与参数（`impl/stage/width/latency/...`、`TESTS/SEED/TIMEOUT`）以及仿真输出摘要；完整日志保存在 `build/<配置>/test.log`（不入库）。
+
+**使用前请先在 `scripts/tracer.mk` 顶部填写自己的学号与姓名**（默认为占位符 `ysyx_00000000` / `Your Name`），或在命令行覆盖：`make test STUID=ysyx_12345678 STUNAME='Zhang San'`。
+
+```bash
+git log tracer-ysyx            # 查看追踪记录
+make -f scripts/tracer.mk .clean_index  # 仅在提交异常中断、残留 .git/index.* 时使用
+```
+
 ## 教学阶段
 | 阶段 | 类型 | 握手 | 符号支持 | 对应的 Verilog 模块 |
 | :--- | :--- | :--- | :--- | :--- |
