@@ -1,0 +1,12 @@
+# 基于 ROM 的乘法器
+# 接口/时序描述，供 Makefile 与测试适配器使用（说明见 README「描述一种新实现」）。
+IMPL_TITLE := 基于 ROM 的乘法器
+IMPL_MODULE := RomMultiplier
+IMPL_CLOCKED := 0
+IMPL_FIXED_CYCLE := 0
+IMPL_PIPELINED := 0
+IMPL_HANDSHAKE := 0
+IMPL_SIGNED := 0
+IMPL_MAX_WIDTH := 8
+IMPL_LATENCY_CONFIGURABLE := 0
+IMPL_DEFAULT_LATENCY = 1

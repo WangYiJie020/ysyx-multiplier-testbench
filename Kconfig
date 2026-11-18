@@ -1,42 +1,68 @@
 mainmenu "YSYX Multiplier Testbench"
 choice
     prompt "Student language"
-    default IMPL_CHISEL
-config IMPL_CHISEL
+    default HDL_VERILOG
+    help
+      Language of your own implementation. Both run through the same Verilog testbench.
+config HDL_VERILOG
+    bool "Verilog"
+    help
+      Edit student/rtl/<Module>.v. No Chisel/Scala toolchain is needed.
+config HDL_CHISEL
     bool "Chisel"
-config IMPL_VERILOG
-    bool "Verilog via Chisel BlackBox"
+    help
+      Edit chisel/multiplier/src/multiplier/impls/<Module>.scala. Requires Mill and a JDK;
+      the module is generated to Verilog (chisel/ project) before simulation.
 endchoice
+
+# Keep in sync with impls/<id>.mk, student/rtl/<Module>.v and chisel/.../Impls.scala (id strings).
 choice
-    prompt "Learning stage"
-    default STAGE_COMB
-config STAGE_COMB
-    bool "1. Combinational unsigned"
-config STAGE_MULTI
-    bool "2. Fixed multicycle unsigned FSM"
-config STAGE_PIPE
-    bool "3. Fixed latency unsigned pipeline"
-config STAGE_HANDSHAKE
-    bool "4. Unsigned with handshake"
-config STAGE_SIGNED
-    bool "5. Full interface with signed operands"
+    prompt "Multiplier implementation"
+    default MUL_DIRECT
+config MUL_DIRECT
+    bool "A*B direct multiplication (combinational)"
+config MUL_ROM
+    bool "ROM lookup (combinational, width <= 8)"
+config MUL_COMB_ADD
+    bool "Partial-product adder (combinational)"
+config MUL_ACCUM
+    bool "Accumulating multiplier (fixed multicycle)"
+config MUL_SHIFT_ADD
+    bool "Shift-add multiplier (variable latency, handshake)"
+config MUL_PIPE_ACCUM
+    bool "Pipelined accumulating multiplier (fixed latency, pipelined)"
+config MUL_PIPE_SHIFT_ADD
+    bool "Pipelined shift-add multiplier (fixed latency, pipelined)"
+config MUL_WALLACE
+    bool "Wallace tree (pipelined)"
+config MUL_BOOTH_WALLACE
+    bool "Booth2 + Wallace tree (pipelined)"
+config MUL_SIGNED_DIRECT
+    bool "Signed A*B (handshake)"
 endchoice
-config STAGE
-    int
-    default 1 if STAGE_COMB
-    default 2 if STAGE_MULTI
-    default 3 if STAGE_PIPE
-    default 4 if STAGE_HANDSHAKE
-    default 5 if STAGE_SIGNED
+config MUL
+    string
+    default "direct" if MUL_DIRECT
+    default "rom" if MUL_ROM
+    default "comb_add" if MUL_COMB_ADD
+    default "accum" if MUL_ACCUM
+    default "shift_add" if MUL_SHIFT_ADD
+    default "pipe_accum" if MUL_PIPE_ACCUM
+    default "pipe_shift_add" if MUL_PIPE_SHIFT_ADD
+    default "wallace" if MUL_WALLACE
+    default "booth_wallace" if MUL_BOOTH_WALLACE
+    default "signed_direct" if MUL_SIGNED_DIRECT
 config WIDTH
     int "Operand width"
     range 1 64
     default 8
 config LATENCY
-    int "Student native latency (cycles)"
-    depends on STAGE_MULTI || STAGE_PIPE
-    range 1 64
-    default 3
+    int "Latency override in cycles (0 = implementation default)"
+    depends on MUL_WALLACE || MUL_BOOTH_WALLACE
+    range 0 64
+    default 0
+    help
+      Only implementations whose latency is a design choice can be overridden.
 menu "Test coverage"
 config TEST_EXHAUSTIVE
     bool "Force exhaustive testing"
@@ -49,6 +75,6 @@ config TEST_EXHAUSTIVE
 
 config TEST_SIGNED
     bool "Test signed and mixed-sign multiplication"
-    depends on STAGE_SIGNED
+    depends on MUL_SIGNED_DIRECT
     default n
 endmenu

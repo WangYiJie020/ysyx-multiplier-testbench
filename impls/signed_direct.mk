@@ -1,0 +1,12 @@
+# 有符号 A*B（握手接口）
+# 接口/时序描述，供 Makefile 与测试适配器使用（说明见 README「描述一种新实现」）。
+IMPL_TITLE := 有符号 A*B（握手接口）
+IMPL_MODULE := SignedDirectMultiplier
+IMPL_CLOCKED := 1
+IMPL_FIXED_CYCLE := 0
+IMPL_PIPELINED := 0
+IMPL_HANDSHAKE := 1
+IMPL_SIGNED := 1
+IMPL_MAX_WIDTH := 64
+IMPL_LATENCY_CONFIGURABLE := 0
+IMPL_DEFAULT_LATENCY = 1
