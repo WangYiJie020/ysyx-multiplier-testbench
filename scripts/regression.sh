@@ -9,17 +9,21 @@ restore() {
     make --no-print-directory olddefconfig >/dev/null
 }
 trap restore EXIT
-for language in CHISEL VERILOG; do
-    for stage in COMB MULTI PIPE HANDSHAKE SIGNED; do
-        for latency in 1 3; do
-            if [[ $latency == 1 && $stage != MULTI && $stage != PIPE ]]; then continue; fi
+# implementation (Kconfig symbol suffix) : extra .config lines per run
+impls=(DIRECT ROM COMB_ADD ACCUM SHIFT_ADD PIPE_ACCUM PIPE_SHIFT_ADD WALLACE BOOTH_WALLACE SIGNED_DIRECT)
+for hdl in CHISEL VERILOG; do
+    for impl in "${impls[@]}"; do
+        # Latency-configurable implementations are also run with a non-default latency.
+        latencies=(0)
+        if [[ $impl == WALLACE || $impl == BOOTH_WALLACE ]]; then latencies=(0 7); fi
+        for latency in "${latencies[@]}"; do
             cat > .config <<CFG
-CONFIG_IMPL_${language}=y
-CONFIG_STAGE_${stage}=y
+CONFIG_HDL_${hdl}=y
+CONFIG_MUL_${impl}=y
 CONFIG_WIDTH=8
 CONFIG_LATENCY=$latency
 CFG
-            if [[ $stage == SIGNED ]]; then echo CONFIG_TEST_SIGNED=y >> .config; fi
+            if [[ $impl == SIGNED_DIRECT ]]; then echo CONFIG_TEST_SIGNED=y >> .config; fi
             make --no-print-directory olddefconfig
             make --no-print-directory test
         done

@@ -1,4 +1,4 @@
-/out/
+/chisel/out/
 /build/
 /tools/kconfig/
 /tools/.kconfig-source.*/

@@ -11,7 +11,7 @@ using U128 = unsigned __int128;
 
 /// Operand width in bits (1-64); "Operand width" in menuconfig.
 constexpr unsigned width = OPERAND_WIDTH;
-/// Whether signed and mixed-sign multiplication is tested (stage 5 only).
+/// Whether signed and mixed-sign multiplication is tested (signed implementations only).
 constexpr bool testSigned = TEST_SIGNED;
 /// Whether the test is exhaustive.
 constexpr bool testExhaustive = TEST_EXHAUSTIVE;
