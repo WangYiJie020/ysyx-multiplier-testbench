@@ -28,7 +28,12 @@ CONF := $(KCONFIG)/build/conf
 MCONF := $(KCONFIG)/build/mconf
 
 # NEMU-style native conf/mconf and generated Make configuration.
-ifeq ($(filter menuconfig defconfig olddefconfig savedefconfig help clean distclean init,$(MAKECMDGOALS)),)
+# Config-changing targets must finish before a build reads the resulting config.
+CONFIG_CHANGING_GOALS := menuconfig defconfig olddefconfig clean distclean regression
+ifneq (,$(filter-out $(CONFIG_CHANGING_GOALS) savedefconfig help init,$(or $(MAKECMDGOALS),$(.DEFAULT_GOAL))))
+ifneq (,$(filter $(CONFIG_CHANGING_GOALS),$(MAKECMDGOALS)))
+$(error Run configuration, cleanup or regression targets separately from build targets)
+endif
 NEED_CONFIG := 1
 include include/config/auto.conf
 endif
@@ -43,12 +48,15 @@ EXHAUSTIVE := $(if $(CONFIG_TEST_EXHAUSTIVE),1,0)
 csa_latency = $(shell n=$(1); l=0; while [ $$n -gt 2 ]; do n=$$((n - n/3)); l=$$((l+1)); done; echo $$((l+1)))
 IMPL_FILE := impls/$(ALGO).mk
 ifeq ($(NEED_CONFIG),1)
+# On the first invocation, Make generates auto.conf and restarts before selecting an implementation.
+ifneq ($(wildcard include/config/auto.conf),)
 ifeq ($(wildcard $(IMPL_FILE)),)
 $(error unknown implementation '$(ALGO)'; see impls/*.mk)
 endif
 include $(IMPL_FILE)
 ifneq ($(shell [ $(WIDTH) -le $(IMPL_MAX_WIDTH) ] && echo ok),ok)
 $(error $(ALGO): operand width must be at most $(IMPL_MAX_WIDTH))
+endif
 endif
 endif
 # Fixed-cycle implementations: LATENCY override (0 = default) only where the latency is a design choice.
@@ -67,17 +75,19 @@ SIM := $(BUILD_DIR)/sim
 # Chisel students: Chisel sources are elaborated by the standalone chisel/ project (needs Mill + JDK).
 # Verilog students never touch it.
 CHISEL_DIR := $(BUILD_DIR)/chisel
-CHISEL_SOURCES := $(shell find chisel -name '*.scala' -o -name 'build.mill' -o -name '.mill-*' 2>/dev/null | grep -v /out/)
 ifeq ($(HDL),chisel)
+CHISEL_SOURCES := $(shell find chisel/multiplier/src -type d -o -name '*.scala') chisel/build.mill chisel/.mill-version chisel/.mill-jvm-version
 RTL := $(CHISEL_DIR)/$(IMPL_MODULE).sv
 else
 # Helper modules go in student/rtl/common/ and are always compiled; other implementations' files are not.
 RTL := $(CONFIG_SVH)
+VERILOG_DIRS := $(CURDIR)/student/rtl $(CURDIR)/student/rtl/common
 STUDENT_VERILOG := $(CURDIR)/student/rtl/$(IMPL_MODULE).v $(wildcard $(CURDIR)/student/rtl/common/*.v $(CURDIR)/student/rtl/common/*.sv)
-VERILOG_DEPS := $(STUDENT_VERILOG) $(wildcard student/rtl/common/*.vh student/rtl/common/*.svh)
+VERILOG_DEPS := $(STUDENT_VERILOG) $(VERILOG_DIRS) $(foreach dir,$(VERILOG_DIRS),$(wildcard $(dir)/*.vh $(dir)/*.svh))
 endif
+SIM_ADAPTER := $(CURDIR)/sim/rtl/Multiplier.sv
 SIM_SOURCES := $(wildcard sim/*.cpp student/tests/*.cpp)
-SIM_DEPS := $(SIM_SOURCES) $(wildcard sim/*.h student/tests/*.h)
+SIM_DEPS := $(SIM_ADAPTER) $(SIM_SOURCES) $(wildcard sim/*.h student/tests/*.h)
 RUN_ARGS := --tests '$(TESTS)' --seed '$(SEED)' --timeout '$(TIMEOUT)' --suite '$(SUITE)'$(if $(VECTORS), --vectors '$(VECTORS)') $(SIM_ARGS)
 RUN_INFO := hdl=$(HDL) impl=$(ALGO) width=$(WIDTH) latency=$(LAT) signed=$(SIGNED) exhaustive=$(EXHAUSTIVE) tests=$(TESTS) seed=$(SEED) timeout=$(TIMEOUT) suite=$(SUITE)$(if $(VECTORS), vectors=$(VECTORS))$(if $(SIM_ARGS), sim_args=$(SIM_ARGS))
 
@@ -85,7 +95,8 @@ RUN_INFO := hdl=$(HDL) impl=$(ALGO) width=$(WIDTH) latency=$(LAT) signed=$(SIGNE
 # prototype: traced_run(label, command)
 define traced_run
 	@+mkdir -p '$(BUILD_DIR)'; start=$$SECONDS; \
-	$(2) 2>&1 | tee '$(BUILD_DIR)/$(1).log'; status=$${PIPESTATUS[0]}; \
+	{ printf '===== 当前测试实现：%s (%s) | %s | 位宽 %s =====\n' '$(IMPL_TITLE)' '$(ALGO)' '$(HDL)' '$(WIDTH)'; \
+	  $(2); } 2>&1 | tee '$(BUILD_DIR)/$(1).log'; status=$${PIPESTATUS[0]}; \
 	bash scripts/tracer-result.sh '$(1)' $$status $$((SECONDS - start)) '$(BUILD_DIR)/$(1).log' '$(RUN_INFO)' > '$(BUILD_DIR)/$(1).result'; \
 	$(call git_commit_file_cmd,'$(BUILD_DIR)/$(1).result'); \
 	exit $$status
@@ -97,7 +108,7 @@ init: tools/kconfig/parser.y
 tools/kconfig/parser.y: init.sh
 	bash init.sh
 
-$(CONF) $(MCONF): tools/kconfig/parser.y scripts/kconfig-build.mk
+$(CONF) $(MCONF) &: tools/kconfig/parser.y scripts/kconfig-build.mk
 	$(MAKE) -C tools/kconfig -f ../../scripts/kconfig-build.mk
 
 .config:
@@ -107,7 +118,7 @@ include/config/auto.conf: .config Kconfig $(CONF)
 	$(CONF) --olddefconfig Kconfig
 	$(CONF) --syncconfig Kconfig
 
-menuconfig: $(MCONF)
+menuconfig: $(MCONF) $(CONF)
 	$(MCONF) Kconfig
 	$(CONF) --syncconfig Kconfig
 
@@ -123,8 +134,8 @@ savedefconfig: $(CONF)
 	$(CONF) --savedefconfig=$(DEFCONFIG) Kconfig
 
 all: test
-compile:
-	$(MILL) $(MILL_FLAGS) multiplier.compile
+# Build the simulator for the selected language without running tests.
+compile: sim
 
 # Generated parameters of the adapter (sim/rtl/Multiplier.sv) and the DUT instantiation.
 $(CONFIG_SVH): $(IMPL_FILE) include/config/auto.conf Makefile
@@ -141,7 +152,7 @@ $(CONFIG_SVH): $(IMPL_FILE) include/config/auto.conf Makefile
 	   echo '`define MUL_PARAMS $(MUL_PARAMS)'; } > '$@'
 
 ifeq ($(HDL),chisel)
-$(RTL): $(CHISEL_SOURCES) include/config/auto.conf
+$(RTL): $(CHISEL_SOURCES) $(IMPL_FILE) include/config/auto.conf Makefile
 	$(call git_commit,generate rtl)
 	rm -rf -- '$(CHISEL_DIR)'
 	@mkdir -p '$(CHISEL_DIR)'
@@ -153,9 +164,9 @@ $(SIM): $(RTL) $(CONFIG_SVH) $(VERILOG_DEPS) $(SIM_DEPS) Makefile
 	$(call git_commit,compile sim)
 	$(VERILATOR) --cc --exe --build --trace-fst --assert $(VERILATOR_FLAGS) \
 		--top-module Multiplier --prefix VMultiplier \
-		-I'$(BUILD_DIR)' --Mdir '$(BUILD_DIR)/obj_dir' -o '$(SIM)' -j $(JOBS) \
+		-I'$(BUILD_DIR)' $(foreach dir,$(VERILOG_DIRS),-I'$(dir)') --Mdir '$(BUILD_DIR)/obj_dir' -o '$(SIM)' -j $(JOBS) \
 		-CFLAGS '-std=c++17 -O2 -I$(CURDIR)/sim -Wall -Wextra -DOPERAND_WIDTH=$(WIDTH) -DTEST_SIGNED=$(SIGNED) -DTEST_EXHAUSTIVE=$(EXHAUSTIVE)' \
-		-MAKEFLAGS 'CXX=$(CXX)' '$(CURDIR)/sim/rtl/Multiplier.sv' $(if $(filter chisel,$(HDL)),$(wildcard $(CHISEL_DIR)/*.sv),$(STUDENT_VERILOG)) $(addprefix $(CURDIR)/,$(SIM_SOURCES))
+		-MAKEFLAGS 'CXX=$(CXX)' '$(SIM_ADAPTER)' $(if $(filter chisel,$(HDL)),$(wildcard $(CHISEL_DIR)/*.sv),$(STUDENT_VERILOG)) $(addprefix $(CURDIR)/,$(SIM_SOURCES))
 
 sim: $(SIM)
 test: $(SIM)

@@ -25,6 +25,14 @@ make
 make test TESTS=100000 [SEED=42]
 ```
 
+**测试讲义中的每个阶段前，先运行 `make menuconfig`，在 `Multiplier implementation` 中选择该任务对应的实现（见下表），保存后再运行 `make test`。** 例如，测试任务二时选累加乘法器（`accum`）。`make test` 只测试当前选中的实现，不会自动切换阶段。
+
+`make test` 和 `make wave` 在开始仿真时会显示当前实现的名称、ID、语言和位宽，例如：
+
+```text
+===== 当前测试实现：累加乘法器 (accum) | verilog | 位宽 8 =====
+```
+
 ### Git Tracer
 参考 ysyx 工作区的 tracer：`make rtl`、`make sim`、`make test`、`make wave` 会把当前工作区快照自动提交到 `tracer-ysyx` 分支（不影响当前分支、工作区与暂存区；遵守 `.gitignore`）。`test` / `wave` 运行结束后还会追加一次提交，在提交信息中记录 `PASS/FAIL`、退出码、耗时、配置与参数（`hdl/impl/width/latency/...`、`TESTS/SEED/TIMEOUT`）以及仿真输出摘要；完整日志保存在 `build/<配置>/test.log`（不入库）。
 
@@ -85,7 +93,10 @@ make -f scripts/tracer.mk .clean_index  # 仅在提交异常中断、残留 .git
 * `make test TESTS=1000`：调整测试样本量。
 * `make wave`：生成 `wave.fst` 波形文件。
 * `make rtl`：仅生成/准备 RTL（Chisel 时生成 Verilog，Verilog 时只生成适配器参数）。
+* `make compile`（等价于 `make sim`）：按当前语言配置构建仿真器，不运行测试。
 * `make regression`：对两种语言、全部实现执行全量回归测试（会改写并在结束后恢复 `.config`；包含 Chisel，因此需要 Mill/JDK）。
+
+配置或清理后再单独执行构建，例如 `make defconfig && make compile`，不要把会修改配置或构建产物的目标与编译目标放在同一次 `make` 调用中。
 
 ## 测试框架说明
 * **测试流程**：框架在学员模块外部包裹适配器与 Testbench，提供统一的请求/结果流，并记录状态机与记分板进行核对。
