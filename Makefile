@@ -124,7 +124,7 @@ savedefconfig: $(CONF)
 
 all: test
 compile:
-	$(MILL) $(MILL_FLAGS) multiplier.compile
+	cd chisel && $(MILL) $(MILL_FLAGS) multiplier.compile
 
 # Generated parameters of the adapter (sim/rtl/Multiplier.sv) and the DUT instantiation.
 $(CONFIG_SVH): $(IMPL_FILE) include/config/auto.conf Makefile
