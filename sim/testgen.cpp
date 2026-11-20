@@ -60,14 +60,9 @@ std::vector<Request> loadRequests(const std::string& path) {
         const std::string where = path + ":" + std::to_string(lineNo) + ": ";
         if (tokens.size() != 2 && tokens.size() != 4)
             throw std::runtime_error(where + "expected `a b [aSigned bSigned]`");
-        Request r{parseNumber(tokens[0]), parseNumber(tokens[1]), false, false};
-        if ((r.a & ~operandMask) || (r.b & ~operandMask))
-            throw std::runtime_error(where + "operand does not fit in " + std::to_string(width) + " bits");
-        if (tokens.size() == 4) {
-            r.aSigned = parseNumber(tokens[2]) != 0;
-            r.bSigned = parseNumber(tokens[3]) != 0;
-        }
-        requests.push_back(r);
+        requests.push_back({parseNumber(tokens[0]), parseNumber(tokens[1]),
+                            tokens.size() == 4 && parseNumber(tokens[2]) != 0,
+                            tokens.size() == 4 && parseNumber(tokens[3]) != 0});
     }
     return requests;
 }

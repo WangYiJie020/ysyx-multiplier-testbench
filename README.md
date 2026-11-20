@@ -103,9 +103,14 @@ make test SUITE=custom VECTORS=student/tests/vectors.txt # 从文件加载测试
 ```
 
 可用接口（均在 `namespace sim`，头文件 `sim/student.h`）：
-* **数据**：`Request{a, b, aSigned = 0, bSigned = 0}`（构造时自动用 `operandMask` 截断到位宽）、`directedRequests()`、`randomRequests(n, rng)`、`loadRequests(file)`（每行 `a b [aSigned bSigned]`，支持 `#` 注释）、`filterEnabled(requests)`。
+* **数据**：`Request{a, b, aSigned = 0, bSigned = 0}`、`directedRequests()`、`randomRequests(n, rng)`、`loadRequests(file)`（每行 `a b [aSigned bSigned]`，支持 `#` 注释）、`filterEnabled(requests)`。
 * **驱动**：`tb.run(requests, Pacing)` 按自定义的发送/接收停顿模式发送（`Pacing::always()`、`Pacing::random(rng)`，或自行设置 `offer` / `ready` 回调）；`tb.step(request, ready)` 逐周期控制；`tb.reset()`、`tb.drain()`、`tb.resetDuringTraffic(r)`。
 * **常量**：`width`、`testSigned`、`operandMask`。
+
+`Request` 始终保留操作数的低 `width` 位。非负数可提供任意能放进该位宽的位模式；负数按二补码判断，丢掉的如果只是符号扩展位就不警告。以 8 位为例，`-1`、`-128`、`255` 都不会警告，`-129` 和 `256` 则会警告。`aSigned` / `bSigned` 只决定乘法时如何解释位模式，不影响这项检查。
+
+* 普通构造 `Request{a, b}`：默认的 GCC/Clang 优化构建会对编译器能识别的越界常量发出编译警告；对运行时才知道的值，警告写入 `stderr`，并显示原值和截断结果。两种情况都不会停止测试。
+* 需要保证在编译期检查（例如初始化 `constexpr` 对象，或关闭了优化）时，用 `Request::constant<A, B>(aSigned, bSigned)`。例如 `constexpr auto r = Request::constant<-129, 1>();` 在 8 位下会产生编译警告，`r.a` 仍是 `0x7f`。
 
 `sim/` 目录结构：`rtl/Multiplier.sv`（测试适配器）、`main.cpp` / `main.h`（入口与命令行选项）、`model.*`（请求与参考模型）、`testbench.*`（驱动与记分板）、`testgen.*`（数据生成/加载）、`builtin_tests.*`（内置测试）、`progress.*`（穷举进度）、`config.h`（编译期参数）。
 

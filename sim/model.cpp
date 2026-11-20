@@ -1,9 +1,22 @@
 #include "model.h"
 
+#include <cinttypes>
+#include <cstdio>
 #include <iomanip>
 #include <sstream>
 
 namespace sim {
+namespace detail {
+void warnConstantTruncation() {}
+
+void warnRuntimeTruncation(char operand, uint64_t bits, bool negative) {
+    std::fprintf(stderr, "warning: Request operand %c=%s%" PRIu64
+                         " truncated to %u bits (0x%" PRIx64 ")\n",
+                 operand, negative ? "-" : "", negative ? uint64_t{0} - bits : bits,
+                 width, bits & operandMask);
+}
+} // namespace detail
+
 std::string hex(U128 value) {
     std::ostringstream s;
     s << "0x" << std::hex << std::setfill('0');
